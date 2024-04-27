@@ -1,0 +1,12 @@
+[package]
+name = "roguewave"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+anyhow = { version = "1.0.82", features = ["backtrace"] }
+log = "0.4.21"
+openssh = "0.10.4"
+tokio = { version = "1.37.0", features = ["full"] }
