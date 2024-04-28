@@ -32,3 +32,17 @@ pub async fn home_dir(session: &mut Session) -> anyhow::Result<&Path> {
         .context("missing remote env var \"HOME\"")
         .map(Path::new)
 }
+
+pub async fn current_user(session: &mut Session) -> anyhow::Result<&str> {
+    let env = env(session).await?;
+    env.get("USER")
+        .context("missing remote env var \"USER\"")
+        .map(|s| s.as_str())
+}
+
+pub async fn shell(session: &mut Session) -> anyhow::Result<&Path> {
+    let env = env(session).await?;
+    env.get("SHELL")
+        .context("missing remote env var \"SHELL\"")
+        .map(Path::new)
+}

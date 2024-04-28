@@ -4,6 +4,7 @@ use anyhow::{bail, Context};
 use log::{info, log};
 use openssh::{KnownHosts::Strict, Stdio};
 use openssh_sftp_client::{fs::Fs, Sftp};
+use recipes::env::current_user;
 use tempfile::NamedTempFile;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use type_map::concurrent::TypeMap;
@@ -15,23 +16,19 @@ pub struct Command<'a> {
     command: Vec<String>,
     stdout_log_level: log::Level,
     stderr_log_level: log::Level,
+    allow_failure: bool,
     raw: bool,
 }
 
 impl<'a> Command<'a> {
-    pub async fn run(self) -> anyhow::Result<CommandOutput> {
-        let output = self.run_internal().await?;
-        if output.exit_code != 0 {
-            bail!("failed with exit code {}", output.exit_code);
-        }
-        Ok(output)
-    }
-
     pub async fn exit_code(self) -> anyhow::Result<i32> {
-        self.run_internal().await.map(|output| output.exit_code)
+        self.allow_failure()
+            .run()
+            .await
+            .map(|output| output.exit_code)
     }
 
-    pub fn hide_all_output(mut self) -> Self {
+    pub fn hide_all_output(self) -> Self {
         self.hide_stdout().hide_stderr()
     }
 
@@ -45,7 +42,12 @@ impl<'a> Command<'a> {
         self
     }
 
-    async fn run_internal(self) -> anyhow::Result<CommandOutput> {
+    pub fn allow_failure(mut self) -> Self {
+        self.allow_failure = true;
+        self
+    }
+
+    pub async fn run(self) -> anyhow::Result<CommandOutput> {
         if self.command.is_empty() {
             bail!("cannot run empty command");
         }
@@ -60,6 +62,7 @@ impl<'a> Command<'a> {
         } else {
             cmd.args(&self.command[1..]);
         }
+        cmd.stdin(Stdio::null());
         cmd.stderr(Stdio::piped());
         cmd.stdout(Stdio::piped());
         let mut child = cmd.spawn().await?;
@@ -77,6 +80,9 @@ impl<'a> Command<'a> {
         ));
         let status = child.wait().await?;
         let exit_code = status.code().context("missing exit code")?;
+        if !self.allow_failure && exit_code != 0 {
+            bail!("failed with exit code {}", exit_code);
+        }
         Ok(CommandOutput {
             exit_code,
             stdout: stdout_task.await??,
@@ -160,6 +166,7 @@ impl Session {
             command: command.into_iter().map(|s| s.as_ref().into()).collect(),
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
+            allow_failure: false,
             raw: false,
         }
     }
@@ -214,6 +221,20 @@ impl Session {
         ])
         .run()
         .await?;
+
+        if current_user(self).await? == "root" {
+            // tar preserves user ID by default when run under root,
+            // and --no-same-owner only helps for files and not for
+            // dirs for some reason.
+            self.command([
+                "chown",
+                "--recursive",
+                "root:root",
+                remote_path.to_str().context("non-utf8 path")?,
+            ])
+            .run()
+            .await?;
+        }
 
         Ok(())
     }
