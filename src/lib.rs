@@ -1,6 +1,10 @@
+use std::{path::Path, sync::Arc};
+
 use anyhow::{bail, Context};
 use log::info;
 use openssh::{KnownHosts::Strict, Stdio};
+use openssh_sftp_client::{error::SftpErrorKind, fs::Fs, Sftp};
+use tempfile::NamedTempFile;
 use tokio::io::{AsyncRead, AsyncReadExt};
 
 pub mod recipes;
@@ -103,13 +107,34 @@ pub struct CommandOutput {
 }
 
 pub struct Session {
-    inner: openssh::Session,
+    inner: Arc<openssh::Session>,
+    sftp_child: openssh::Child<Arc<openssh::Session>>,
+    sftp: Sftp,
+    fs: Fs,
 }
 
 impl Session {
     pub async fn connect(destination: impl AsRef<str>) -> anyhow::Result<Self> {
+        let session = openssh::Session::connect_mux(destination, Strict).await?;
+        let session = Arc::new(session);
+        let mut sftp_child = openssh::Session::to_subsystem(session.clone(), "sftp")
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .spawn()
+            .await?;
+
+        let sftp = Sftp::new(
+            sftp_child.stdin().take().unwrap(),
+            sftp_child.stdout().take().unwrap(),
+            Default::default(),
+        )
+        .await?;
+
         Ok(Session {
-            inner: openssh::Session::connect(destination, Strict).await?,
+            inner: session,
+            sftp_child,
+            fs: sftp.fs(),
+            sftp,
         })
     }
 
@@ -121,5 +146,55 @@ impl Session {
             show_stderr: true,
             raw: false,
         }
+    }
+
+    pub fn fs(&mut self) -> &mut Fs {
+        &mut self.fs
+    }
+
+    pub async fn upload(
+        &mut self,
+        local_path: impl AsRef<Path>,
+        remote_path: impl AsRef<Path>,
+    ) -> anyhow::Result<()> {
+        let local_path = local_path.as_ref();
+        let remote_path = remote_path.as_ref();
+
+        let local_parent = local_path.parent().context("failed to get parent dir")?;
+        let local_last_name = local_path.file_name().context("failed to get file name")?;
+        let remote_parent = remote_path.parent().context("failed to get parent dir")?;
+        let remote_last_name = remote_path.file_name().context("failed to get file name")?;
+        if local_last_name != remote_last_name {
+            bail!("changing last name on upload is unsupported"); // TODO
+        }
+
+        let local_archive_path = NamedTempFile::new()?.into_temp_path();
+        let status = std::process::Command::new("tar")
+            .args(["--create", "--gzip", "--file"])
+            .arg(&local_archive_path)
+            .arg("--directory")
+            .arg(&local_parent)
+            .arg(&local_last_name)
+            .status()?;
+        if !status.success() {
+            bail!("local tar command failed");
+        }
+        let content = fs_err::read(&local_archive_path)?;
+        // TODO: proper temp file generation
+        let remote_archive_path = "/tmp/1.tar.gz";
+        self.fs.write(&remote_archive_path, content).await?;
+
+        self.command([
+            "tar",
+            "--extract",
+            "--file",
+            remote_archive_path,
+            "--directory",
+            remote_parent.to_str().context("non-utf8 path")?,
+        ])
+        .run()
+        .await?;
+
+        Ok(())
     }
 }
