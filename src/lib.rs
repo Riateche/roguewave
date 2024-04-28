@@ -1,19 +1,20 @@
 use std::{path::Path, sync::Arc};
 
 use anyhow::{bail, Context};
-use log::info;
+use log::{info, log};
 use openssh::{KnownHosts::Strict, Stdio};
-use openssh_sftp_client::{error::SftpErrorKind, fs::Fs, Sftp};
+use openssh_sftp_client::{fs::Fs, Sftp};
 use tempfile::NamedTempFile;
 use tokio::io::{AsyncRead, AsyncReadExt};
+use type_map::concurrent::TypeMap;
 
 pub mod recipes;
 
 pub struct Command<'a> {
     session: &'a Session,
     command: Vec<String>,
-    show_stdout: bool,
-    show_stderr: bool,
+    stdout_log_level: log::Level,
+    stderr_log_level: log::Level,
     raw: bool,
 }
 
@@ -30,9 +31,17 @@ impl<'a> Command<'a> {
         self.run_internal().await.map(|output| output.exit_code)
     }
 
-    pub fn hide_output(mut self) -> Self {
-        self.show_stdout = false;
-        self.show_stderr = false;
+    pub fn hide_all_output(mut self) -> Self {
+        self.hide_stdout().hide_stderr()
+    }
+
+    pub fn hide_stdout(mut self) -> Self {
+        self.stdout_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn hide_stderr(mut self) -> Self {
+        self.stderr_log_level = log::Level::Trace;
         self
     }
 
@@ -56,8 +65,16 @@ impl<'a> Command<'a> {
         let mut child = cmd.spawn().await?;
         let stderr_reader = child.stderr().take().context("missing stderr")?;
         let stdout_reader = child.stdout().take().context("missing stdout")?;
-        let stderr_task = tokio::spawn(handle_output(stderr_reader, self.show_stderr, "stderr: "));
-        let stdout_task = tokio::spawn(handle_output(stdout_reader, self.show_stdout, "stdout: "));
+        let stderr_task = tokio::spawn(handle_output(
+            stderr_reader,
+            self.stderr_log_level,
+            "stderr: ",
+        ));
+        let stdout_task = tokio::spawn(handle_output(
+            stdout_reader,
+            self.stdout_log_level,
+            "stdout: ",
+        ));
         let status = child.wait().await?;
         let exit_code = status.code().context("missing exit code")?;
         Ok(CommandOutput {
@@ -70,7 +87,7 @@ impl<'a> Command<'a> {
 
 async fn handle_output(
     reader: impl AsyncRead,
-    print: bool,
+    log_level: log::Level,
     prefix: &str,
 ) -> anyhow::Result<String> {
     let mut output = String::new();
@@ -83,18 +100,14 @@ async fn handle_output(
         }
         while let Some(index) = vec.iter().position(|i| *i == b'\n') {
             let line = std::str::from_utf8(&vec[..=index])?;
-            if print {
-                info!("{}{}", prefix, &line[..line.len() - 1]);
-            }
+            log!(log_level, "{}{}", prefix, &line[..line.len() - 1]);
             output.push_str(line);
             vec.drain(..=index);
         }
     }
     if !vec.is_empty() {
         let line = std::str::from_utf8(&vec)?;
-        if print {
-            info!("{}{}[eof]", prefix, line);
-        }
+        log!(log_level, "{}{}[eof]", prefix, line);
         output.push_str(line);
     }
     Ok(output)
@@ -108,9 +121,11 @@ pub struct CommandOutput {
 
 pub struct Session {
     inner: Arc<openssh::Session>,
+    #[allow(dead_code)]
     sftp_child: openssh::Child<Arc<openssh::Session>>,
     sftp: Sftp,
     fs: Fs,
+    cache: TypeMap,
 }
 
 impl Session {
@@ -135,6 +150,7 @@ impl Session {
             sftp_child,
             fs: sftp.fs(),
             sftp,
+            cache: TypeMap::new(),
         })
     }
 
@@ -142,10 +158,14 @@ impl Session {
         Command {
             session: self,
             command: command.into_iter().map(|s| s.as_ref().into()).collect(),
-            show_stdout: true,
-            show_stderr: true,
+            stdout_log_level: log::Level::Info,
+            stderr_log_level: log::Level::Error,
             raw: false,
         }
+    }
+
+    pub fn sftp(&mut self) -> &mut Sftp {
+        &mut self.sftp
     }
 
     pub fn fs(&mut self) -> &mut Fs {
@@ -173,8 +193,8 @@ impl Session {
             .args(["--create", "--gzip", "--file"])
             .arg(&local_archive_path)
             .arg("--directory")
-            .arg(&local_parent)
-            .arg(&local_last_name)
+            .arg(local_parent)
+            .arg(local_last_name)
             .status()?;
         if !status.success() {
             bail!("local tar command failed");
@@ -196,5 +216,9 @@ impl Session {
         .await?;
 
         Ok(())
+    }
+
+    pub fn cache(&mut self) -> &mut TypeMap {
+        &mut self.cache
     }
 }
