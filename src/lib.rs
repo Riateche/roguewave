@@ -9,7 +9,7 @@ use anyhow::{bail, Context};
 use log::{info, log};
 use openssh::{KnownHosts::Strict, Stdio};
 use openssh_sftp_client::{fs::Fs, Sftp};
-use recipes::apt::install_package;
+use recipes::apt::Apt;
 use tokio::io::{AsyncRead, AsyncReadExt};
 use type_map::concurrent::TypeMap;
 
@@ -263,7 +263,7 @@ impl Session {
                 remote_parent_path.as_ref()
             );
         }
-        install_package(self, "rsync").await?;
+        self.install_package("rsync").await?;
         let mut command = local::Command::new([
             "rsync",
             //"--archive",
