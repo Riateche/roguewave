@@ -63,6 +63,23 @@ impl<'a> Command<'a> {
         self
     }
 
+    pub fn prepend_args(mut self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
+        let mut new_args: Vec<_> = args
+            .into_iter()
+            .map(|arg| Arg::Escaped(arg.as_ref().into()))
+            .collect();
+        new_args.append(&mut self.command);
+        self.command = new_args;
+        self
+    }
+
+    pub fn user(mut self, user: Option<&str>) -> Self {
+        if let Some(user) = user {
+            self = self.prepend_args(["sudo", "--user", user]);
+        }
+        self
+    }
+
     pub async fn exit_code(self) -> anyhow::Result<i32> {
         self.allow_failure()
             .run()
