@@ -11,7 +11,11 @@ pub trait Env {
     async fn home_dir(&mut self) -> anyhow::Result<&Path>;
     async fn current_user(&mut self) -> anyhow::Result<&str>;
     async fn shell(&mut self) -> anyhow::Result<&Path>;
-    async fn set_shell(&mut self, shell: impl AsRef<Path> + Send) -> anyhow::Result<()>;
+    async fn set_shell(
+        &mut self,
+        shell: impl AsRef<Path> + Send,
+        user: Option<&str>,
+    ) -> anyhow::Result<()>;
 }
 
 #[async_trait]
@@ -57,7 +61,11 @@ impl Env for Session {
             .map(Path::new)
     }
 
-    async fn set_shell(&mut self, shell: impl AsRef<Path> + Send) -> anyhow::Result<()> {
+    async fn set_shell(
+        &mut self,
+        shell: impl AsRef<Path> + Send,
+        user: Option<&str>,
+    ) -> anyhow::Result<()> {
         let shell = shell.as_ref();
         if self.shell().await? != shell {
             self.command(["chsh", "-s", shell.to_str().context("non-utf8 path")?])

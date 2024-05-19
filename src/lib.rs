@@ -79,8 +79,18 @@ impl<'a> Command<'a> {
         self
     }
 
+    pub fn stdout_log_level(mut self, level: log::Level) -> Self {
+        self.stdout_log_level = level;
+        self
+    }
+
     pub fn hide_stderr(mut self) -> Self {
         self.stderr_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn stderr_log_level(mut self, level: log::Level) -> Self {
+        self.stderr_log_level = level;
         self
     }
 
@@ -249,6 +259,7 @@ impl Session {
         &mut self,
         local_paths: impl IntoIterator<Item = impl AsRef<Path>>,
         remote_parent_path: impl AsRef<Path>,
+        remote_user: Option<&str>,
     ) -> anyhow::Result<()> {
         if !self
             .fs
@@ -276,6 +287,17 @@ impl Session {
             "--human-readable",
             "--delete",
         ]);
+        if let Some(remote_user) = remote_user {
+            if remote_user
+                .chars()
+                .any(|c| !(c.is_ascii_alphanumeric() || c == '.' || c == '_' || c == '-'))
+            {
+                bail!("unsafe user: {remote_user:?}");
+            }
+            command = command
+                .arg("--rsync-path")
+                .arg(format!("sudo --user {remote_user} rsync"));
+        }
         for arg in local_paths {
             command = command.arg(arg.as_ref().to_str().context("non-utf8 path")?);
         }
