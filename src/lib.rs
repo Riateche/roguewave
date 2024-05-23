@@ -1,4 +1,5 @@
 use core::fmt;
+use derive_more::From;
 use std::{
     ffi::{OsStr, OsString},
     path::Path,
@@ -16,16 +17,52 @@ use type_map::concurrent::TypeMap;
 pub mod local;
 pub mod recipes;
 
-enum Arg {
+struct Arg {
+    kind: ArgKind,
+    display_placeholder: Option<String>,
+}
+
+impl ArgKind {
+    pub fn escaped(value: impl AsRef<str>) -> Self {
+        Self::Escaped(value.as_ref().into())
+    }
+
+    pub fn raw(value: impl AsRef<OsStr>) -> Self {
+        Self::Raw(value.as_ref().into())
+    }
+}
+
+impl Arg {
+    pub fn escaped(value: impl AsRef<str>) -> Self {
+        Arg {
+            kind: ArgKind::escaped(value),
+            display_placeholder: None,
+        }
+    }
+
+    pub fn raw(value: impl AsRef<OsStr>) -> Self {
+        Arg {
+            kind: ArgKind::raw(value),
+            display_placeholder: None,
+        }
+    }
+}
+
+#[derive(From)]
+enum ArgKind {
     Escaped(String),
     Raw(OsString),
 }
 
 impl fmt::Debug for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Escaped(arg) => write!(f, "{:?}", arg),
-            Self::Raw(arg) => write!(f, "Raw({:?})", arg),
+        if let Some(placeholder) = &self.display_placeholder {
+            write!(f, "{placeholder}")
+        } else {
+            match &self.kind {
+                ArgKind::Escaped(arg) => write!(f, "{arg:?}"),
+                ArgKind::Raw(arg) => write!(f, "Raw({arg:?})"),
+            }
         }
     }
 }
@@ -40,34 +77,37 @@ pub struct Command<'a> {
 
 impl<'a> Command<'a> {
     pub fn arg(mut self, arg: impl AsRef<str>) -> Self {
-        self.command.push(Arg::Escaped(arg.as_ref().into()));
+        self.command.push(Arg::escaped(arg));
         self
     }
 
     pub fn raw_arg(mut self, arg: impl AsRef<OsStr>) -> Self {
-        self.command.push(Arg::Raw(arg.as_ref().into()));
+        self.command.push(Arg::raw(arg));
+        self
+    }
+
+    pub fn redacted_arg(mut self, arg: impl AsRef<str>, placeholder: impl AsRef<str>) -> Self {
+        self.command.push(Arg {
+            kind: ArgKind::escaped(arg),
+            display_placeholder: Some(placeholder.as_ref().into()),
+        });
         self
     }
 
     pub fn args(mut self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
-        self.command.extend(
-            args.into_iter()
-                .map(|arg| Arg::Escaped(arg.as_ref().into())),
-        );
+        self.command
+            .extend(args.into_iter().map(|arg| Arg::escaped(arg)));
         self
     }
 
     pub fn raw_args(mut self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Self {
         self.command
-            .extend(args.into_iter().map(|arg| Arg::Raw(arg.as_ref().into())));
+            .extend(args.into_iter().map(|arg| Arg::raw(arg)));
         self
     }
 
     pub fn prepend_args(mut self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
-        let mut new_args: Vec<_> = args
-            .into_iter()
-            .map(|arg| Arg::Escaped(arg.as_ref().into()))
-            .collect();
+        let mut new_args: Vec<_> = args.into_iter().map(|arg| Arg::escaped(arg)).collect();
         new_args.append(&mut self.command);
         self.command = new_args;
         self
@@ -121,16 +161,16 @@ impl<'a> Command<'a> {
             bail!("cannot run empty command");
         }
         info!("running {:?}", self.command);
-        let mut cmd = match &self.command[0] {
-            Arg::Escaped(cmd) => self.session.inner.command(cmd),
-            Arg::Raw(cmd) => self.session.inner.raw_command(cmd),
+        let mut cmd = match &self.command[0].kind {
+            ArgKind::Escaped(cmd) => self.session.inner.command(cmd),
+            ArgKind::Raw(cmd) => self.session.inner.raw_command(cmd),
         };
         for arg in &self.command[1..] {
-            match arg {
-                Arg::Escaped(arg) => {
+            match &arg.kind {
+                ArgKind::Escaped(arg) => {
                     cmd.arg(arg);
                 }
-                Arg::Raw(arg) => {
+                ArgKind::Raw(arg) => {
                     cmd.raw_arg(arg);
                 }
             }
@@ -238,10 +278,7 @@ impl Session {
     pub fn command<S: AsRef<str>, I: IntoIterator<Item = S>>(&self, command: I) -> Command<'_> {
         Command {
             session: self,
-            command: command
-                .into_iter()
-                .map(|s| Arg::Escaped(s.as_ref().into()))
-                .collect(),
+            command: command.into_iter().map(|s| Arg::escaped(s)).collect(),
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
             allow_failure: false,
@@ -254,10 +291,7 @@ impl Session {
     ) -> Command<'_> {
         Command {
             session: self,
-            command: command
-                .into_iter()
-                .map(|s| Arg::Raw(s.as_ref().into()))
-                .collect(),
+            command: command.into_iter().map(|s| Arg::raw(s)).collect(),
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
             allow_failure: false,
@@ -294,7 +328,6 @@ impl Session {
         self.install_package("rsync").await?;
         let mut command = local::Command::new([
             "rsync",
-            //"--archive",
             "--recursive",
             "--links",
             "--perms",

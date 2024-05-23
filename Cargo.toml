@@ -8,6 +8,8 @@ edition = "2021"
 [dependencies]
 anyhow = { version = "1.0.82", features = ["backtrace"] }
 async-trait = "0.1.80"
+derive_more = "0.99.17"
+format-sql-query = "0.4.0"
 fs-err = "2.11.0"
 log = "0.4.21"
 openssh = { version = "0.10.4", features = ["native-mux"] }
