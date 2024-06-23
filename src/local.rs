@@ -43,7 +43,7 @@ impl Command {
         if self.command.is_empty() {
             bail!("cannot run empty command");
         }
-        info!("running locally {:?}", self.command);
+        info!("running local command: {:?}", self.command);
         let mut child = std::process::Command::new(&self.command[0])
             .args(&self.command[1..])
             .stdin(Stdio::null())

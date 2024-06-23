@@ -115,7 +115,7 @@ impl<'a> Command<'a> {
 
     pub fn user(mut self, user: Option<&str>) -> Self {
         if let Some(user) = user {
-            self = self.prepend_args(["sudo", "--user", user]);
+            self = self.prepend_args(["sudo", "--login", "--user", user]);
         }
         self
     }
