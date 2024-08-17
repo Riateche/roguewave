@@ -1,6 +1,6 @@
 use anyhow::{bail, Result};
 use async_trait::async_trait;
-use log::info;
+use log::{debug, info};
 
 use crate::Session;
 
@@ -15,6 +15,7 @@ impl User for Session {
     async fn user_exists(&self, name: &str) -> Result<bool> {
         let code = self
             .command(["id", "--user", name])
+            .hide_command()
             .hide_all_output()
             .exit_code()
             .await?;
@@ -27,7 +28,7 @@ impl User for Session {
 
     async fn create_user(&self, name: &str) -> Result<()> {
         if self.user_exists(name).await? {
-            info!("user {name:?} already exists");
+            debug!("user {name:?} already exists");
             return Ok(());
         }
         self.command(["useradd", "--create-home", name])

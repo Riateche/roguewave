@@ -7,7 +7,7 @@ use std::{
 };
 
 use anyhow::{bail, Context};
-use log::{info, log};
+use log::log;
 use openssh::{KnownHosts::Strict, Stdio};
 use openssh_sftp_client::{fs::Fs, Sftp};
 use recipes::apt::Apt;
@@ -70,6 +70,7 @@ impl fmt::Debug for Arg {
 pub struct Command<'a> {
     session: &'a Session,
     command: Vec<Arg>,
+    command_log_level: log::Level,
     stdout_log_level: log::Level,
     stderr_log_level: log::Level,
     allow_failure: bool,
@@ -151,6 +152,16 @@ impl<'a> Command<'a> {
         self
     }
 
+    pub fn hide_command(mut self) -> Self {
+        self.command_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn command_log_level(mut self, level: log::Level) -> Self {
+        self.command_log_level = level;
+        self
+    }
+
     pub fn allow_failure(mut self) -> Self {
         self.allow_failure = true;
         self
@@ -160,7 +171,7 @@ impl<'a> Command<'a> {
         if self.command.is_empty() {
             bail!("cannot run empty command");
         }
-        info!("running {:?}", self.command);
+        log!(self.command_log_level, "running {:?}", self.command);
         let mut cmd = match &self.command[0].kind {
             ArgKind::Escaped(cmd) => self.session.inner.command(cmd),
             ArgKind::Raw(cmd) => self.session.inner.raw_command(cmd),
@@ -279,6 +290,7 @@ impl Session {
         Command {
             session: self,
             command: command.into_iter().map(|s| Arg::escaped(s)).collect(),
+            command_log_level: log::Level::Info,
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
             allow_failure: false,
@@ -292,6 +304,7 @@ impl Session {
         Command {
             session: self,
             command: command.into_iter().map(|s| Arg::raw(s)).collect(),
+            command_log_level: log::Level::Info,
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
             allow_failure: false,
@@ -328,15 +341,15 @@ impl Session {
         self.install_package("rsync").await?;
         let mut command = local::Command::new([
             "rsync",
+            "--itemize-changes",
             "--recursive",
             "--links",
             "--perms",
             "--times",
-            "--verbose",
             "--compress",
-            "--human-readable",
             "--delete",
-        ]);
+        ])
+        .hide_command();
         if let Some(remote_user) = remote_user {
             if remote_user
                 .chars()

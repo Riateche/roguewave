@@ -6,13 +6,14 @@ use std::{
 };
 
 use anyhow::{anyhow, bail, Context};
-use log::{info, log};
+use log::log;
 use tokio::task::block_in_place;
 
 use crate::CommandOutput;
 
 pub struct Command {
     command: Vec<String>,
+    command_log_level: log::Level,
     stdout_log_level: log::Level,
     stderr_log_level: log::Level,
     allow_failure: bool,
@@ -22,6 +23,7 @@ impl Command {
     pub fn new<S: AsRef<str>, I: IntoIterator<Item = S>>(command: I) -> Command {
         Command {
             command: command.into_iter().map(|s| s.as_ref().into()).collect(),
+            command_log_level: log::Level::Info,
             stdout_log_level: log::Level::Info,
             stderr_log_level: log::Level::Error,
             allow_failure: false,
@@ -39,11 +41,49 @@ impl Command {
         self
     }
 
+    pub fn hide_all_output(self) -> Self {
+        self.hide_stdout().hide_stderr()
+    }
+
+    pub fn hide_stdout(mut self) -> Self {
+        self.stdout_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn stdout_log_level(mut self, level: log::Level) -> Self {
+        self.stdout_log_level = level;
+        self
+    }
+
+    pub fn hide_stderr(mut self) -> Self {
+        self.stderr_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn stderr_log_level(mut self, level: log::Level) -> Self {
+        self.stderr_log_level = level;
+        self
+    }
+
+    pub fn hide_command(mut self) -> Self {
+        self.command_log_level = log::Level::Trace;
+        self
+    }
+
+    pub fn command_log_level(mut self, level: log::Level) -> Self {
+        self.command_log_level = level;
+        self
+    }
+
     pub async fn run(self) -> anyhow::Result<CommandOutput> {
         if self.command.is_empty() {
             bail!("cannot run empty command");
         }
-        info!("running local command: {:?}", self.command);
+        log!(
+            self.command_log_level,
+            "running local command: {:?}",
+            self.command
+        );
         let mut child = std::process::Command::new(&self.command[0])
             .args(&self.command[1..])
             .stdin(Stdio::null())

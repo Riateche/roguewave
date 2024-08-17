@@ -26,6 +26,7 @@ impl Apt for Session {
                 "--showformat=${db:Status-Status}",
                 package,
             ])
+            .hide_command()
             .hide_all_output()
             .allow_failure()
             .run()
@@ -49,9 +50,14 @@ impl Apt for Session {
 
     async fn upgrade_system(&mut self) -> anyhow::Result<()> {
         update_package_list_unless_cached(self).await?;
-        self.command(["apt-get", "dist-upgrade", "--yes"])
-            .run()
-            .await?;
+        self.command([
+            "DEBIAN_FRONTEND=noninteractive",
+            "apt-get",
+            "dist-upgrade",
+            "--yes",
+        ])
+        .run()
+        .await?;
         Ok(())
     }
 

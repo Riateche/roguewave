@@ -27,7 +27,13 @@ impl Env for Session {
             .map_or(false, |c| c.has_user(user));
 
         if !cache_has_user {
-            let output = self.command(["env"]).user(user).hide_stdout().run().await?;
+            let output = self
+                .command(["env"])
+                .user(user)
+                .hide_command()
+                .hide_stdout()
+                .run()
+                .await?;
             let mut env = BTreeMap::new();
             for line in output.stdout.split('\n') {
                 if line.is_empty() {

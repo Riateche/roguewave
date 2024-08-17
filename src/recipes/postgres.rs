@@ -37,6 +37,8 @@ impl Postgres for Session {
                 ),
             ])
             .prepend_args(["sudo", "--user", "postgres", "--login"])
+            .hide_command()
+            .hide_stdout()
             .run()
             .await?
             .stdout
@@ -82,6 +84,8 @@ impl Postgres for Session {
                 ),
             ])
             .prepend_args(["sudo", "--user", "postgres", "--login"])
+            .hide_command()
+            .hide_stdout()
             .run()
             .await?
             .stdout
