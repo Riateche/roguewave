@@ -75,6 +75,11 @@ impl LocalCommand {
         self
     }
 
+    pub fn allow_failure(mut self) -> Self {
+        self.allow_failure = true;
+        self
+    }
+
     pub async fn run(self) -> anyhow::Result<CommandOutput> {
         if self.command.is_empty() {
             bail!("cannot run empty command");

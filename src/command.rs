@@ -236,6 +236,7 @@ async fn handle_output(
     Ok(output)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CommandOutput {
     pub exit_code: i32,
     pub stdout: String,

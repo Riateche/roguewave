@@ -1,6 +1,6 @@
 use std::{path::Path, sync::Arc};
 
-use openssh::{KnownHosts::Strict, Stdio};
+use openssh::{KnownHosts, Stdio};
 use openssh_sftp_client::{error::SftpErrorKind, fs::Fs, Error, Sftp};
 use type_map::concurrent::TypeMap;
 
@@ -22,8 +22,11 @@ pub struct Session {
 }
 
 impl Session {
-    pub async fn connect(destination: impl AsRef<str>) -> anyhow::Result<Self> {
-        let session = openssh::Session::connect_mux(destination.as_ref(), Strict).await?;
+    pub async fn from_openssh_builder(
+        builder: openssh::SessionBuilder,
+        destination: impl AsRef<str>,
+    ) -> anyhow::Result<Self> {
+        let session = builder.connect_mux(destination.as_ref()).await?;
         let session = Arc::new(session);
         let mut sftp_child = openssh::Session::to_subsystem(session.clone(), "sftp")
             .stdin(Stdio::piped())
@@ -46,6 +49,12 @@ impl Session {
             sftp,
             cache: TypeMap::new(),
         })
+    }
+
+    pub async fn connect(destination: impl AsRef<str>) -> anyhow::Result<Self> {
+        let mut builder = openssh::SessionBuilder::default();
+        builder.known_hosts_check(KnownHosts::Strict);
+        Self::from_openssh_builder(builder, destination).await
     }
 
     pub fn sftp(&mut self) -> &mut Sftp {
