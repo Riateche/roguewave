@@ -1,25 +1,24 @@
 use std::time::{Duration, SystemTime};
 
 use anyhow::bail;
-use async_trait::async_trait;
 use log::info;
 
 use crate::Session;
 
 const AUTO_UPDATE_PERIOD: Duration = Duration::from_secs(3600);
 
-#[async_trait]
-pub trait Apt {
-    async fn is_package_installed(&self, package: &str) -> anyhow::Result<bool>;
-    async fn install_package(&mut self, package: &str) -> anyhow::Result<()>;
-    async fn upgrade_system(&mut self) -> anyhow::Result<()>;
-    async fn update_package_list(&mut self) -> anyhow::Result<()>;
+impl Session {
+    pub fn apt(&mut self) -> Apt {
+        Apt(self)
+    }
 }
 
-#[async_trait]
-impl Apt for Session {
-    async fn is_package_installed(&self, package: &str) -> anyhow::Result<bool> {
+pub struct Apt<'a>(&'a mut Session);
+
+impl<'a> Apt<'a> {
+    pub async fn is_package_installed(&self, package: &str) -> anyhow::Result<bool> {
         let output = self
+            .0
             .command([
                 "dpkg-query",
                 "--show",
@@ -38,32 +37,40 @@ impl Apt for Session {
         }
     }
 
-    async fn install_package(&mut self, package: &str) -> anyhow::Result<()> {
-        if !self.is_package_installed(package).await? {
-            update_package_list_unless_cached(self).await?;
-            self.command(["apt-get", "install", "--yes", package])
+    pub async fn install(&mut self, packages: &[&str]) -> anyhow::Result<()> {
+        let mut new_packages = Vec::new();
+        for package in packages {
+            if !self.is_package_installed(package).await? {
+                new_packages.push(package);
+            }
+        }
+        if !new_packages.is_empty() {
+            self.0
+                .command(["apt-get", "install", "--yes"])
+                .args(new_packages)
                 .run()
                 .await?;
         }
         Ok(())
     }
 
-    async fn upgrade_system(&mut self) -> anyhow::Result<()> {
-        update_package_list_unless_cached(self).await?;
-        self.command([
-            "DEBIAN_FRONTEND=noninteractive",
-            "apt-get",
-            "dist-upgrade",
-            "--yes",
-        ])
-        .run()
-        .await?;
+    pub async fn upgrade_system(&mut self) -> anyhow::Result<()> {
+        update_package_list_unless_cached(self.0).await?;
+        self.0
+            .command([
+                "DEBIAN_FRONTEND=noninteractive",
+                "apt-get",
+                "dist-upgrade",
+                "--yes",
+            ])
+            .run()
+            .await?;
         Ok(())
     }
 
-    async fn update_package_list(&mut self) -> anyhow::Result<()> {
-        self.command(["apt-get", "update"]).run().await?;
-        self.cache().insert(PackageListUpdated);
+    pub async fn update_package_list(&mut self) -> anyhow::Result<()> {
+        self.0.command(["apt-get", "update"]).run().await?;
+        self.0.cache().insert(PackageListUpdated);
         Ok(())
     }
 }
@@ -81,7 +88,7 @@ async fn update_package_list_unless_cached(session: &mut Session) -> anyhow::Res
                 return Ok(());
             }
         }
-        session.update_package_list().await?;
+        session.apt().update_package_list().await?;
     }
     Ok(())
 }

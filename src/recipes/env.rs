@@ -1,26 +1,14 @@
-use std::{collections::BTreeMap, path::Path};
+use std::{
+    collections::BTreeMap,
+    path::{Path, PathBuf},
+};
 
 use anyhow::Context;
-use async_trait::async_trait;
 
 use crate::Session;
 
-#[async_trait]
-pub trait Env {
-    async fn env(&mut self, user: Option<&str>) -> anyhow::Result<&BTreeMap<String, String>>;
-    async fn home_dir(&mut self, user: Option<&str>) -> anyhow::Result<&str>;
-    async fn current_user(&mut self) -> anyhow::Result<&str>;
-    async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<&Path>;
-    async fn set_shell(
-        &mut self,
-        shell: impl AsRef<Path> + Send,
-        user: Option<&str>,
-    ) -> anyhow::Result<()>;
-}
-
-#[async_trait]
-impl Env for Session {
-    async fn env(&mut self, user: Option<&str>) -> anyhow::Result<&BTreeMap<String, String>> {
+impl Session {
+    pub async fn env(&mut self, user: Option<&str>) -> anyhow::Result<&BTreeMap<String, String>> {
         let cache_has_user = self
             .cache()
             .get::<EnvCache>()
@@ -64,28 +52,29 @@ impl Env for Session {
         }
     }
 
-    async fn home_dir(&mut self, user: Option<&str>) -> anyhow::Result<&str> {
+    pub async fn home_dir(&mut self, user: Option<&str>) -> anyhow::Result<String> {
         let env = self.env(user).await?;
         env.get("HOME")
             .context("missing remote env var \"HOME\"")
-            .map(|s| s.as_str())
+            .cloned()
     }
 
-    async fn current_user(&mut self) -> anyhow::Result<&str> {
+    pub async fn current_user(&mut self) -> anyhow::Result<String> {
         let env = self.env(None).await?;
         env.get("USER")
             .context("missing remote env var \"USER\"")
-            .map(|s| s.as_str())
+            .cloned()
     }
 
-    async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<&Path> {
+    pub async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<PathBuf> {
         let env = self.env(user).await?;
         env.get("SHELL")
             .context("missing remote env var \"SHELL\"")
-            .map(Path::new)
+            .cloned()
+            .map(PathBuf::from)
     }
 
-    async fn set_shell(
+    pub async fn set_shell(
         &mut self,
         shell: impl AsRef<Path> + Send,
         user: Option<&str>,

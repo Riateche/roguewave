@@ -11,7 +11,7 @@ use tokio::task::block_in_place;
 
 use crate::CommandOutput;
 
-pub struct Command {
+pub struct LocalCommand {
     command: Vec<String>,
     command_log_level: log::Level,
     stdout_log_level: log::Level,
@@ -19,9 +19,9 @@ pub struct Command {
     allow_failure: bool,
 }
 
-impl Command {
-    pub fn new<S: AsRef<str>, I: IntoIterator<Item = S>>(command: I) -> Command {
-        Command {
+impl LocalCommand {
+    pub fn new<S: AsRef<str>, I: IntoIterator<Item = S>>(command: I) -> LocalCommand {
+        LocalCommand {
             command: command.into_iter().map(|s| s.as_ref().into()).collect(),
             command_log_level: log::Level::Info,
             stdout_log_level: log::Level::Info,
@@ -113,11 +113,7 @@ impl Command {
     }
 }
 
-pub fn handle_output(
-    reader: impl Read,
-    log_level: log::Level,
-    prefix: &str,
-) -> anyhow::Result<String> {
+fn handle_output(reader: impl Read, log_level: log::Level, prefix: &str) -> anyhow::Result<String> {
     let reader = BufReader::new(reader);
     let mut output = String::new();
     for line in reader.lines() {

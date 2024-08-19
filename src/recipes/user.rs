@@ -1,18 +1,10 @@
-use anyhow::{bail, Result};
-use async_trait::async_trait;
+use anyhow::{bail, Context, Result};
 use log::{debug, info};
 
 use crate::Session;
 
-#[async_trait]
-pub trait User {
-    async fn user_exists(&self, name: &str) -> Result<bool>;
-    async fn create_user(&self, name: &str) -> Result<()>;
-}
-
-#[async_trait]
-impl User for Session {
-    async fn user_exists(&self, name: &str) -> Result<bool> {
+impl Session {
+    pub async fn user_exists(&self, name: &str) -> Result<bool> {
         let code = self
             .command(["id", "--user", name])
             .hide_command()
@@ -26,7 +18,7 @@ impl User for Session {
         }
     }
 
-    async fn create_user(&self, name: &str) -> Result<()> {
+    pub async fn create_user(&self, name: &str) -> Result<()> {
         if self.user_exists(name).await? {
             debug!("user {name:?} already exists");
             return Ok(());
@@ -36,5 +28,17 @@ impl User for Session {
             .await?;
         info!("created user {name:?}");
         Ok(())
+    }
+
+    pub async fn user_id(&self, name: &str) -> Result<u32> {
+        self.command(["id", "--user", name])
+            .hide_command()
+            .hide_stdout()
+            .run()
+            .await?
+            .stdout
+            .trim()
+            .parse()
+            .context("failed to parse user id")
     }
 }
