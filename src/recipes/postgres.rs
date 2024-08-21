@@ -4,6 +4,7 @@ use format_sql_query::QuotedData;
 use crate::Session;
 
 impl Session {
+    /// Execute PostgreSQL commands.
     pub fn postgres(&mut self) -> Postgres {
         Postgres(self)
     }
@@ -12,6 +13,9 @@ impl Session {
 pub struct Postgres<'a>(&'a mut Session);
 
 impl<'a> Postgres<'a> {
+    /// Create a PostgreSQL user with the specified password.
+    ///
+    /// Note: if the user with the specified name already exists, its password will not be changed.
     pub async fn create_user_with_password(&mut self, user: &str, password: &str) -> Result<()> {
         if !user.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             bail!("invalid postgres user name");
@@ -58,6 +62,7 @@ impl<'a> Postgres<'a> {
         Ok(())
     }
 
+    /// Create a PostgreSQL database.
     pub async fn create_database(&mut self, name: &str) -> Result<()> {
         if !name
             .chars()
@@ -95,6 +100,7 @@ impl<'a> Postgres<'a> {
         Ok(())
     }
 
+    /// Grant all privileges on `database` to `user`.
     pub async fn grant_all_privileges(&mut self, database: &str, user: &str) -> Result<()> {
         if !user.chars().all(|c| c.is_ascii_alphanumeric() || c == '_') {
             bail!("invalid postgres user name");

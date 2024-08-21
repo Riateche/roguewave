@@ -8,6 +8,8 @@ use anyhow::Context;
 use crate::Session;
 
 impl Session {
+    /// Read environment variables for the specified user. If no user if specified, the current user
+    /// is used.
     pub async fn env(&mut self, user: Option<&str>) -> anyhow::Result<&BTreeMap<String, String>> {
         let cache_has_user = self
             .cache()
@@ -52,6 +54,8 @@ impl Session {
         }
     }
 
+    /// Fetch home directory location for the specified user. If no user if specified, the current user
+    /// is used.
     pub async fn home_dir(&mut self, user: Option<&str>) -> anyhow::Result<String> {
         let env = self.env(user).await?;
         env.get("HOME")
@@ -59,6 +63,7 @@ impl Session {
             .cloned()
     }
 
+    /// Fetch the current user name.
     pub async fn current_user(&mut self) -> anyhow::Result<String> {
         let env = self.env(None).await?;
         env.get("USER")
@@ -66,6 +71,8 @@ impl Session {
             .cloned()
     }
 
+    /// Fetch shell command for the specified user. If no user if specified, the current user
+    /// is used.
     pub async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<PathBuf> {
         let env = self.env(user).await?;
         env.get("SHELL")
@@ -74,6 +81,8 @@ impl Session {
             .map(PathBuf::from)
     }
 
+    /// Set shell command for the specified user. If no user if specified, the current user
+    /// is used.
     pub async fn set_shell(
         &mut self,
         shell: impl AsRef<Path> + Send,

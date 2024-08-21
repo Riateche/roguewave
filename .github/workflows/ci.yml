@@ -13,6 +13,8 @@ jobs:
         with:
           toolchain: 1.80.1
           components: rustfmt, clippy
+      - name: install cargo-readme
+        run: cargo install cargo-readme
       - name: rustfmt
         uses: actions-rust-lang/rustfmt@v1
       - name: test
@@ -22,7 +24,14 @@ jobs:
           eval $(ssh-agent)
           ssh-add .github/workflows/ci_ssh_key
           ssh -o StrictHostKeyChecking=no root@127.0.0.1 "echo ssh is available"
-          export ROGUEWAVE_INTEGRATION_TEST_HOST=root@127.0.0.1
+          export ROGUEWAVE_INTEGRATION_TEST_DESTINATION=root@127.0.0.1
           cargo test
       - name: clippy
         run: cargo clippy --all-targets --all-features -- --deny warnings
+      - name: check readme
+        run: |
+          cargo readme --no-license --output /tmp/README.md
+          if ! diff README.md /tmp/README.md; then
+            >&2 echo "README file is not up to date! run \"cargo readme --no-license\""
+            exit 1
+          fi

@@ -1,5 +1,4 @@
 use anyhow::{bail, Context};
-use openssh::{KnownHosts, SessionBuilder};
 use roguewave::Session;
 use std::env;
 use std::sync::Once;
@@ -20,11 +19,11 @@ fn setup_logger() {
 #[tokio::test]
 async fn integration_test() -> anyhow::Result<()> {
     setup_logger();
-    let host = match env::var("ROGUEWAVE_INTEGRATION_TEST_HOST") {
+    let destination = match env::var("ROGUEWAVE_INTEGRATION_TEST_DESTINATION") {
         Ok(value) => value,
         Err(env::VarError::NotPresent) => {
             println!(
-                "ROGUEWAVE_INTEGRATION_TEST_HOST env var not specified, skipping integration test"
+                "ROGUEWAVE_INTEGRATION_TEST_DESTINATION env var not specified, skipping integration test"
             );
             return Ok(());
         }
@@ -33,14 +32,7 @@ async fn integration_test() -> anyhow::Result<()> {
         }
     };
 
-    let mut builder = SessionBuilder::default();
-    builder.known_hosts_check(KnownHosts::Strict);
-    builder.user("root".into());
-    if let Ok(port) = env::var("ROGUEWAVE_INTEGRATION_TEST_PORT") {
-        builder.port(port.parse()?);
-    }
-    let mut session = Session::from_openssh_builder(builder, host).await?;
-
+    let mut session = Session::connect(destination).await?;
     test_commands(&mut session).await?;
     test_env(&mut session).await?;
     test_apt(&mut session).await?;

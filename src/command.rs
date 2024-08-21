@@ -60,6 +60,10 @@ impl fmt::Debug for Arg {
     }
 }
 
+/// A remote command executor.
+///
+/// Use `Session::command` or `Session::raw_command` to create a new command.
+/// The command, its stdin and stdout will be logged. The logging level can be adjusted.
 pub struct Command<'a> {
     session: &'a Session,
     command: Vec<Arg>,
@@ -70,16 +74,19 @@ pub struct Command<'a> {
 }
 
 impl<'a> Command<'a> {
+    /// Append an argument to the command.
     pub fn arg(mut self, arg: impl AsRef<str>) -> Self {
         self.command.push(Arg::escaped(arg));
         self
     }
 
+    /// Append an argument to the command and disable shell escaping for it.
     pub fn raw_arg(mut self, arg: impl AsRef<OsStr>) -> Self {
         self.command.push(Arg::raw(arg));
         self
     }
 
+    /// Append an argument to the command and prevent logging of it.
     pub fn redacted_arg(mut self, arg: impl AsRef<str>, placeholder: impl AsRef<str>) -> Self {
         self.command.push(Arg {
             kind: ArgKind::escaped(arg),
@@ -88,18 +95,21 @@ impl<'a> Command<'a> {
         self
     }
 
+    /// Append multiple arguments to the command.
     pub fn args(mut self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
         self.command
             .extend(args.into_iter().map(|arg| Arg::escaped(arg)));
         self
     }
 
+    /// Append multiple arguments to the command and disable shell escaping for them.
     pub fn raw_args(mut self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Self {
         self.command
             .extend(args.into_iter().map(|arg| Arg::raw(arg)));
         self
     }
 
+    /// Prepend multiple arguments to the command.
     pub fn prepend_args(mut self, args: impl IntoIterator<Item = impl AsRef<str>>) -> Self {
         let mut new_args: Vec<_> = args.into_iter().map(|arg| Arg::escaped(arg)).collect();
         new_args.append(&mut self.command);
@@ -107,6 +117,9 @@ impl<'a> Command<'a> {
         self
     }
 
+    /// Configure the command to be called as another remote user, using `sudo`.
+    ///
+    /// Equivalent to `prepend_args(["sudo", "--login", "--user", user])`.
     pub fn user(mut self, user: Option<&str>) -> Self {
         if let Some(user) = user {
             self = self.prepend_args(["sudo", "--login", "--user", user]);
@@ -114,52 +127,22 @@ impl<'a> Command<'a> {
         self
     }
 
-    pub async fn exit_code(self) -> anyhow::Result<i32> {
-        self.allow_failure()
-            .run()
-            .await
-            .map(|output| output.exit_code)
-    }
-
-    pub fn hide_all_output(self) -> Self {
-        self.hide_stdout().hide_stderr()
-    }
-
-    pub fn hide_stdout(mut self) -> Self {
-        self.stdout_log_level = log::Level::Trace;
-        self
-    }
-
-    pub fn stdout_log_level(mut self, level: log::Level) -> Self {
-        self.stdout_log_level = level;
-        self
-    }
-
-    pub fn hide_stderr(mut self) -> Self {
-        self.stderr_log_level = log::Level::Trace;
-        self
-    }
-
-    pub fn stderr_log_level(mut self, level: log::Level) -> Self {
-        self.stderr_log_level = level;
-        self
-    }
-
-    pub fn hide_command(mut self) -> Self {
-        self.command_log_level = log::Level::Trace;
-        self
-    }
-
-    pub fn command_log_level(mut self, level: log::Level) -> Self {
-        self.command_log_level = level;
-        self
-    }
-
+    /// Mark the command as possibly expecting a failure.
+    /// If `allow_failure` is called before `run`, `run` will no longer return
+    /// an error on non-zero exit code.
     pub fn allow_failure(mut self) -> Self {
         self.allow_failure = true;
         self
     }
 
+    /// Execute the command and capture the output.
+    ///
+    /// By default, non-exit error code will cause `run` to return an error.
+    /// If non-exit error code is expected and the output capture is needed,
+    /// call `allow_failure` before `run`. If the output capture is not needed,
+    /// use `exit_code` instead of `run` for a possibly failing command.
+    ///
+    /// Non-unicode output in stdout or stderr will result in an error.
     pub async fn run(self) -> anyhow::Result<CommandOutput> {
         if self.command.is_empty() {
             bail!("cannot run empty command");
@@ -206,6 +189,56 @@ impl<'a> Command<'a> {
             stderr: stderr_task.await??,
         })
     }
+
+    /// Execute the command and return the exit code.
+    /// Implies `allow_failure`.
+    pub async fn exit_code(self) -> anyhow::Result<i32> {
+        self.allow_failure()
+            .run()
+            .await
+            .map(|output| output.exit_code)
+    }
+
+    /// Lower stdout and stderr logs to `Trace`.
+    pub fn hide_all_output(self) -> Self {
+        self.hide_stdout().hide_stderr()
+    }
+
+    /// Lower stdout logs to `Trace`.
+    pub fn hide_stdout(mut self) -> Self {
+        self.stdout_log_level = log::Level::Trace;
+        self
+    }
+
+    /// Set log level for stdout.
+    pub fn stdout_log_level(mut self, level: log::Level) -> Self {
+        self.stdout_log_level = level;
+        self
+    }
+
+    /// Lower stderr logs to `Trace`.
+    pub fn hide_stderr(mut self) -> Self {
+        self.stderr_log_level = log::Level::Trace;
+        self
+    }
+
+    /// Set log level for stderr.
+    pub fn stderr_log_level(mut self, level: log::Level) -> Self {
+        self.stderr_log_level = level;
+        self
+    }
+
+    /// Lower command execution logs to `Trace`.
+    pub fn hide_command(mut self) -> Self {
+        self.command_log_level = log::Level::Trace;
+        self
+    }
+
+    /// Set log level for command execution.
+    pub fn command_log_level(mut self, level: log::Level) -> Self {
+        self.command_log_level = level;
+        self
+    }
 }
 
 async fn handle_output(
@@ -236,14 +269,19 @@ async fn handle_output(
     Ok(output)
 }
 
+/// Information about an output of an executed command.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct CommandOutput {
+    /// Exit code (zero typically means success).
     pub exit_code: i32,
+    /// Captured stdout (non-unicode output will result in an error).
     pub stdout: String,
+    /// Captured stderr (non-unicode output will result in an error).
     pub stderr: String,
 }
 
 impl Session {
+    /// Prepare a remote command for execution.
     pub fn command<S: AsRef<str>, I: IntoIterator<Item = S>>(&self, command: I) -> Command<'_> {
         Command {
             session: self,
@@ -255,6 +293,8 @@ impl Session {
         }
     }
 
+    /// Prepare a remote command for execution and disable shell escaping
+    /// for the specified portion of the command.
     pub fn raw_command<S: AsRef<OsStr>, I: IntoIterator<Item = S>>(
         &self,
         command: I,

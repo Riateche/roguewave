@@ -8,6 +8,7 @@ use crate::Session;
 const AUTO_UPDATE_PERIOD: Duration = Duration::from_secs(3600);
 
 impl Session {
+    /// Execute apt package management commands.
     pub fn apt(&mut self) -> Apt {
         Apt(self)
     }
@@ -16,6 +17,14 @@ impl Session {
 pub struct Apt<'a>(&'a mut Session);
 
 impl<'a> Apt<'a> {
+    /// Update package list.
+    pub async fn update_package_list(&mut self) -> anyhow::Result<()> {
+        self.0.command(["apt-get", "update"]).run().await?;
+        self.0.cache().insert(PackageListUpdated);
+        Ok(())
+    }
+
+    /// Check if a package is installed.
     pub async fn is_package_installed(&self, package: &str) -> anyhow::Result<bool> {
         let output = self
             .0
@@ -37,6 +46,7 @@ impl<'a> Apt<'a> {
         }
     }
 
+    /// Install specified packages.
     pub async fn install(&mut self, packages: &[&str]) -> anyhow::Result<()> {
         let mut new_packages = Vec::new();
         for package in packages {
@@ -54,6 +64,7 @@ impl<'a> Apt<'a> {
         Ok(())
     }
 
+    /// Upgrade the system. Update package list before the upgrade if necessary.
     pub async fn upgrade_system(&mut self) -> anyhow::Result<()> {
         update_package_list_unless_cached(self.0).await?;
         self.0
@@ -65,12 +76,6 @@ impl<'a> Apt<'a> {
             ])
             .run()
             .await?;
-        Ok(())
-    }
-
-    pub async fn update_package_list(&mut self) -> anyhow::Result<()> {
-        self.0.command(["apt-get", "update"]).run().await?;
-        self.0.cache().insert(PackageListUpdated);
         Ok(())
     }
 }

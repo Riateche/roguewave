@@ -4,6 +4,7 @@ use log::{debug, info};
 use crate::Session;
 
 impl Session {
+    /// Check if the user `name` exists on the remote system.
     pub async fn user_exists(&self, name: &str) -> Result<bool> {
         let code = self
             .command(["id", "--user", name])
@@ -18,6 +19,7 @@ impl Session {
         }
     }
 
+    /// Create a user and its home directory on the remote system.
     pub async fn create_user(&self, name: &str) -> Result<()> {
         if self.user_exists(name).await? {
             debug!("user {name:?} already exists");
@@ -30,6 +32,7 @@ impl Session {
         Ok(())
     }
 
+    /// Fetch remote user ID by name.
     pub async fn user_id(&self, name: &str) -> Result<u32> {
         self.command(["id", "--user", name])
             .hide_command()

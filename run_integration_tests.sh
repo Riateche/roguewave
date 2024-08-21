@@ -21,7 +21,6 @@ for i in {1..10}; do
         break
     fi
 done
-export ROGUEWAVE_INTEGRATION_TEST_HOST=127.0.0.1
-export ROGUEWAVE_INTEGRATION_TEST_PORT=2222
+export ROGUEWAVE_INTEGRATION_TEST_DESTINATION="ssh://root@127.0.0.1:2222"
 cargo test integration -- --nocapture
 docker stop openssh-server

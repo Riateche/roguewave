@@ -5,6 +5,15 @@ use anyhow::{bail, Context};
 use crate::{local, Session};
 
 impl Session {
+    /// Upload local files `local_paths` to the remote location `remote_parent_path`.
+    ///
+    /// Requires `rsync` to be available locally and remotely.
+    ///
+    /// If `remote_user` is specified, it will be used for the upload
+    /// (requires `sudo` available on the remote system).
+    ///
+    /// Existing remote files will be replaced by new files. When uploading directories,
+    /// extraneous files will be deleted from destination directories.
     pub async fn upload(
         &mut self,
         local_paths: impl IntoIterator<Item = impl AsRef<Path>>,
@@ -24,7 +33,6 @@ impl Session {
                 remote_parent_path.as_ref()
             );
         }
-        self.apt().install(&["rsync"]).await?;
         let mut command = local::LocalCommand::new([
             "rsync",
             "--itemize-changes",
