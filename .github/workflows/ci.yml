@@ -26,12 +26,30 @@ jobs:
           ssh -o StrictHostKeyChecking=no root@127.0.0.1 "echo ssh is available"
           export ROGUEWAVE_INTEGRATION_TEST_DESTINATION=root@127.0.0.1
           cargo test
+          cargo run --example setup_http_server -- root@127.0.0.1 setup
+          RESPONSE=$(curl http://127.0.0.1:20080/file1.txt)
+          if [ "$RESPONSE" != "OK1" ]; then
+              >&2 echo "Response failed"
+              exit 1
+          fi
+          cargo run --example setup_http_server -- root@127.0.0.1 stop
+          if curl http://127.0.0.1:20080/file1.txt; then
+              >&2 echo "Stopping failed"
+              exit 1
+          fi
+          cargo run --example setup_http_server -- root@127.0.0.1 start
+          RESPONSE=$(curl http://127.0.0.1:20080/file1.txt)
+          if [ "$RESPONSE" != "OK1" ]; then
+              >&2 echo "Response failed"
+              exit 1
+          fi
       - name: clippy
         run: cargo clippy --all-targets --all-features -- --deny warnings
       - name: check readme
         run: |
           cargo readme --no-license --output /tmp/README.md
           if ! diff README.md /tmp/README.md; then
-            >&2 echo "README file is not up to date! run \"cargo readme --no-license\""
+            >&2 echo "README file is not up to date!"
+            >&2 echo "run \"cargo readme --no-license --output README.md\""
             exit 1
           fi

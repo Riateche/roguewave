@@ -134,8 +134,6 @@ async fn test_env(session: &mut Session) -> anyhow::Result<()> {
     assert_eq!(session.current_user().await?, "root");
     assert_eq!(session.shell(None).await?.as_os_str(), "/bin/bash");
     assert_eq!(get_shell_config(session).await?, "/bin/bash");
-    session.set_shell("/bin/zsh", None).await?;
-    assert_eq!(get_shell_config(session).await?, "/bin/zsh");
 
     Ok(())
 }

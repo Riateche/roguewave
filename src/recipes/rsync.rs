@@ -58,10 +58,18 @@ impl Session {
         for arg in local_paths {
             command = command.arg(arg.as_ref().to_str().context("non-utf8 path")?);
         }
+        if let Some(port) = &self.port {
+            command = command.args(["--rsh", &format!("ssh -p {port}")]);
+        }
+        let destination = if let Some(user) = &self.user {
+            format!("{}@{}", user, self.destination)
+        } else {
+            self.destination.clone()
+        };
         command
             .arg(format!(
                 "{}:{}",
-                self.destination,
+                destination,
                 remote_parent_path
                     .as_ref()
                     .to_str()

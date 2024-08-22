@@ -129,6 +129,7 @@
 
 use std::{path::Path, sync::Arc};
 
+use anyhow::Context;
 use openssh::{KnownHosts, Stdio};
 use openssh_sftp_client::{error::SftpErrorKind, fs::Fs, Error, Sftp};
 use type_map::concurrent::TypeMap;
@@ -142,6 +143,8 @@ pub use local::LocalCommand;
 
 /// A SSH session to a remote host.
 pub struct Session {
+    user: Option<String>,
+    port: Option<u16>,
     destination: String,
     inner: Arc<openssh::Session>,
     #[allow(dead_code)]
@@ -181,7 +184,8 @@ impl Session {
         builder: openssh::SessionBuilder,
         destination: impl AsRef<str>,
     ) -> anyhow::Result<Self> {
-        let session = builder.connect_mux(destination.as_ref()).await?;
+        let (builder, destination) = builder.resolve(destination.as_ref());
+        let session = builder.connect_mux(destination).await?;
         let session = Arc::new(session);
         let mut sftp_child = openssh::Session::to_subsystem(session.clone(), "sftp")
             .stdin(Stdio::piped())
@@ -197,7 +201,13 @@ impl Session {
         .await?;
 
         Ok(Session {
-            destination: destination.as_ref().into(),
+            user: builder.get_user().map(Into::into),
+            port: builder
+                .get_port()
+                .map(|s| s.parse())
+                .transpose()
+                .context("invalid port")?,
+            destination: destination.into(),
             inner: session,
             sftp_child,
             fs: sftp.fs(),
