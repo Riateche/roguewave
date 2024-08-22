@@ -27,26 +27,26 @@ jobs:
           ssh-add .github/workflows/ci_ssh_key
           ssh -o StrictHostKeyChecking=no root@127.0.0.1 "echo ssh is available"
           export ROGUEWAVE_INTEGRATION_TEST_DESTINATION=root@127.0.0.1
-          cargo test
-          cargo run --example setup_http_server -- root@127.0.0.1 setup
+          cargo test --locked
+          cargo run --locked --example setup_http_server -- root@127.0.0.1 setup
           RESPONSE=$(curl http://127.0.0.1:20080/file1.txt)
           if [ "$RESPONSE" != "OK1" ]; then
               >&2 echo "Response failed"
               exit 1
           fi
-          cargo run --example setup_http_server -- root@127.0.0.1 stop
+          cargo run --locked --example setup_http_server -- root@127.0.0.1 stop
           if curl http://127.0.0.1:20080/file1.txt; then
               >&2 echo "Stopping failed"
               exit 1
           fi
-          cargo run --example setup_http_server -- root@127.0.0.1 start
+          cargo run --locked --example setup_http_server -- root@127.0.0.1 start
           RESPONSE=$(curl http://127.0.0.1:20080/file1.txt)
           if [ "$RESPONSE" != "OK1" ]; then
               >&2 echo "Response failed"
               exit 1
           fi
       - name: clippy
-        run: cargo clippy --all-targets --all-features -- --deny warnings
+        run: cargo clippy --locked --all-targets --all-features -- --deny warnings
       - name: check readme
         run: |
           cargo readme --output /tmp/README.md
