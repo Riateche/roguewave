@@ -1,5 +1,18 @@
 # roguewave
 
+[![Crates.io][crates-badge]][crates-url]
+[![docs.rs][docs-badge]][docs-url]
+[![Build Status][actions-badge]][actions-url]
+![Crates.io License][license-badge]
+
+[crates-badge]: https://img.shields.io/crates/v/roguewave.svg
+[crates-url]: https://crates.io/crates/roguewave
+[license-badge]: https://img.shields.io/crates/l/roguewave
+[docs-badge]: https://img.shields.io/docsrs/roguewave
+[docs-url]: https://docs.rs/roguewave
+[actions-badge]: https://img.shields.io/github/actions/workflow/status/Riateche/roguewave/ci.yml?branch=main
+[actions-url]: https://github.com/Riateche/roguewave/actions?query=branch%3Amain
+
 `roguewave` is an imperative remote server automation tool.
 It allows you to create deployment scripts and automate repetitive
 administration tasks.
