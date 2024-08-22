@@ -10,6 +10,7 @@ impl Session {
     }
 }
 
+/// Provides access to PostgreSQL commands.
 pub struct Postgres<'a>(&'a mut Session);
 
 impl<'a> Postgres<'a> {

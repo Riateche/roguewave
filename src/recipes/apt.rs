@@ -14,6 +14,7 @@ impl Session {
     }
 }
 
+/// Provides access to apt package management commands.
 pub struct Apt<'a>(&'a mut Session);
 
 impl<'a> Apt<'a> {

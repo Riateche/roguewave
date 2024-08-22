@@ -8,10 +8,10 @@
 //! It's a code-first tool, where you use Rust code to describe any process
 //! you implement. This gives you clear control flow, explicit context passing,
 //! simple code deduplication and many more benefits that come with using a modern
-//! high-level language. This also makes deployment and configuration more approachable
-//! to developers.
+//! high-level language. This also makes deployment and server configuration
+//! more approachable to developers.
 //!
-//! `roguewave` doesn't come with many built-in capabilities. These built-ins are more like
+//! `roguewave` doesn't come with many built-in capabilities. Existing built-ins are more like
 //! starting points or examples of what you can achieve, and they make some assumptions
 //! about the remote system that are not universally true (e.g. root access, availability of
 //! `sudo` and `apt`). However, `roguewave` itself can be used with any remote system
@@ -100,14 +100,12 @@
 //! use roguewave::Session;
 //!
 //! pub struct Cron<'a>(&'a mut Session);
-//! #[async_trait::async_trait]
 //! pub trait GetCron {
-//!     async fn cron(&mut self) -> Cron;
+//!     fn cron(&mut self) -> Cron;
 //! }
 //!
-//! #[async_trait::async_trait]
 //! impl GetCron for Session {
-//!     async fn cron(&mut self) -> Cron {
+//!     fn cron(&mut self) -> Cron {
 //!         Cron(self)
 //!     }
 //! }
@@ -121,11 +119,6 @@
 //!     }
 //! }
 //! ```
-//! # License
-//! Licensed under either of <a href="LICENSE-APACHE">Apache License, Version 2.0</a>
-//! or <a href="LICENSE-MIT">MIT license</a> at your option. Unless you explicitly state otherwise,
-//! any contribution intentionally submitted for inclusion by you, as defined in the Apache-2.0 license,
-//! shall be dual licensed as above, without any additional terms or conditions.
 
 use std::{path::Path, sync::Arc};
 
@@ -140,6 +133,7 @@ mod recipes;
 
 pub use command::{Command, CommandOutput};
 pub use local::LocalCommand;
+pub use recipes::{apt::Apt, postgres::Postgres};
 
 /// A SSH session to a remote host.
 pub struct Session {

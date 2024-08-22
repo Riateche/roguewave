@@ -1,5 +1,7 @@
 #!/bin/bash
 
+# Run integration tests and setup_http_server example against a local docker container.
+
 set -e
 
 docker stop openssh-server || true

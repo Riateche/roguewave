@@ -1,5 +1,4 @@
 use anyhow::{bail, Context};
-use derive_more::From;
 use log::log;
 use openssh::Stdio;
 use std::{
@@ -41,7 +40,6 @@ impl Arg {
     }
 }
 
-#[derive(From)]
 enum ArgKind {
     Escaped(String),
     Raw(OsString),

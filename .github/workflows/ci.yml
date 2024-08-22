@@ -13,10 +13,12 @@ jobs:
         with:
           toolchain: 1.80.1
           components: rustfmt, clippy
-      - name: install cargo-readme
-        run: cargo install cargo-readme
+      - name: install extra tools
+        run: cargo install --locked cargo-readme@3.3.1 taplo-cli@0.9.3
       - name: rustfmt
         uses: actions-rust-lang/rustfmt@v1
+      - name: check Cargo.toml formatting
+        run: taplo fmt --check --diff Cargo.toml
       - name: test
         run: |
           cat .github/workflows/ci_ssh_key.pub | sudo tee -a /root/.ssh/authorized_keys
@@ -47,9 +49,9 @@ jobs:
         run: cargo clippy --all-targets --all-features -- --deny warnings
       - name: check readme
         run: |
-          cargo readme --no-license --output /tmp/README.md
+          cargo readme --output /tmp/README.md
           if ! diff README.md /tmp/README.md; then
             >&2 echo "README file is not up to date!"
-            >&2 echo "run \"cargo readme --no-license --output README.md\""
+            >&2 echo "run \"cargo readme --output README.md\""
             exit 1
           fi

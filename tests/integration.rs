@@ -1,6 +1,7 @@
 use anyhow::{bail, Context};
 use roguewave::Session;
 use std::env;
+use std::io::{stdout, Write};
 use std::sync::Once;
 
 fn setup_logger() {
@@ -22,9 +23,12 @@ async fn integration_test() -> anyhow::Result<()> {
     let destination = match env::var("ROGUEWAVE_INTEGRATION_TEST_DESTINATION") {
         Ok(value) => value,
         Err(env::VarError::NotPresent) => {
-            println!(
-                "ROGUEWAVE_INTEGRATION_TEST_DESTINATION env var not specified, skipping integration test"
-            );
+            writeln!(
+                stdout(),
+                "Note: ROGUEWAVE_INTEGRATION_TEST_DESTINATION env var not specified, \
+                skipping integration test. \n\
+                Note: use ./run_integration_tests.sh to run the integration test locally."
+            )?;
             return Ok(());
         }
         Err(env::VarError::NotUnicode(value)) => {
@@ -132,7 +136,7 @@ async fn test_env(session: &mut Session) -> anyhow::Result<()> {
 
     assert_eq!(session.home_dir(None).await?, "/root");
     assert_eq!(session.current_user().await?, "root");
-    assert_eq!(session.shell(None).await?.as_os_str(), "/bin/bash");
+    assert_eq!(session.shell(None).await?, "/bin/bash");
     assert_eq!(get_shell_config(session).await?, "/bin/bash");
 
     Ok(())

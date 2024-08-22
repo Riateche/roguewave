@@ -1,7 +1,4 @@
-use std::{
-    collections::BTreeMap,
-    path::{Path, PathBuf},
-};
+use std::collections::BTreeMap;
 
 use anyhow::Context;
 
@@ -73,25 +70,18 @@ impl Session {
 
     /// Fetch shell command for the specified user. If no user if specified, the current user
     /// is used.
-    pub async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<PathBuf> {
+    pub async fn shell(&mut self, user: Option<&str>) -> anyhow::Result<String> {
         let env = self.env(user).await?;
         env.get("SHELL")
             .context("missing remote env var \"SHELL\"")
             .cloned()
-            .map(PathBuf::from)
     }
 
     /// Set shell command for the specified user. If no user if specified, the current user
     /// is used.
-    pub async fn set_shell(
-        &mut self,
-        shell: impl AsRef<Path> + Send,
-        user: Option<&str>,
-    ) -> anyhow::Result<()> {
-        let shell = shell.as_ref();
+    pub async fn set_shell(&mut self, shell: &str, user: Option<&str>) -> anyhow::Result<()> {
         if self.shell(user).await? != shell {
-            let mut command =
-                self.command(["chsh", "-s", shell.to_str().context("non-utf8 path")?]);
+            let mut command = self.command(["chsh", "-s", shell]);
             if let Some(user) = user {
                 command = command.arg(user);
             }
